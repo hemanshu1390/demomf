@@ -1,81 +1,55 @@
 from flask import Flask, request, Response
 import xmltodict
-import dicttoxml
+from dicttoxml import dicttoxml
 
 app = Flask(__name__)
 
-# Sample customer database (for demonstration purposes)
-customers = {}
+# Sample customer data (you can replace it with a database)
+customers = {
+    "5052456456": {"name": "John Doe", "iin": "5052456456", "status": "Active"},
+}
 
-# Route to fetch customer details
-@app.route('/get-customer', methods=['POST'])
+def dict_to_xml_response(data_dict):
+    xml_data = dicttoxml(data_dict, custom_root='response', attr_type=False)
+    return Response(xml_data, mimetype='application/xml')
+
+@app.route('/getCustomer', methods=['POST'])
 def get_customer():
     try:
-        data = xmltodict.parse(request.data)
-        iin = data['NMFIIService']['service_request']['iin']
+        xml_data = request.data.decode('utf-8')
+        data_dict = xmltodict.parse(xml_data)
 
+        iin = data_dict['NMFIIService']['service_request']['iin']
         if iin in customers:
             response_data = {
-                'NMFIIService': {
-                    'service_response': {
-                        'status': 'success',
-                        'message': 'Customer found',
-                        'customer_data': customers[iin]
-                    }
-                }
+                "status": "success",
+                "customer": customers[iin]
             }
         else:
-            response_data = {
-                'NMFIIService': {
-                    'service_response': {
-                        'status': 'error',
-                        'message': 'Customer not found'
-                    }
-                }
-            }
+            response_data = {"status": "error", "message": "Customer not found"}
 
-        response_xml = dicttoxml.dicttoxml(response_data, custom_root='NMFIIService', attr_type=False)
-        return Response(response_xml, mimetype='application/xml')
+        return dict_to_xml_response(response_data)
 
     except Exception as e:
-        error_response = {'NMFIIService': {'service_response': {'status': 'error', 'message': str(e)}}}
-        response_xml = dicttoxml.dicttoxml(error_response, custom_root='NMFIIService', attr_type=False)
-        return Response(response_xml, mimetype='application/xml')
+        return dict_to_xml_response({"status": "error", "message": str(e)})
 
-# Route to create customer
-@app.route('/create-customer', methods=['POST'])
+@app.route('/createCustomer', methods=['POST'])
 def create_customer():
     try:
-        data = xmltodict.parse(request.data)
-        appln_id = data['NMFIIService']['service_request']['appln_id']
-        password = data['NMFIIService']['service_request']['password']
-        broker_code = data['NMFIIService']['service_request']['broker_code']
-        iin = data['NMFIIService']['service_request']['iin']
+        xml_data = request.data.decode('utf-8')
+        data_dict = xmltodict.parse(xml_data)
 
+        customer_info = data_dict['NMFIIService']['service_request']
+        iin = customer_info['iin']
         customers[iin] = {
-            'appln_id': appln_id,
-            'password': password,
-            'broker_code': broker_code,
-            'iin': iin
+            "name": customer_info.get("name", "Unknown"),
+            "iin": iin,
+            "status": "Active"
         }
-
-        response_data = {
-            'NMFIIService': {
-                'service_response': {
-                    'status': 'success',
-                    'message': 'Customer created successfully',
-                    'iin': iin
-                }
-            }
-        }
-
-        response_xml = dicttoxml.dicttoxml(response_data, custom_root='NMFIIService', attr_type=False)
-        return Response(response_xml, mimetype='application/xml')
+        return dict_to_xml_response({"status": "success", "message": "Customer created", "iin": iin})
 
     except Exception as e:
-        error_response = {'NMFIIService': {'service_response': {'status': 'error', 'message': str(e)}}}
-        response_xml = dicttoxml.dicttoxml(error_response, custom_root='NMFIIService', attr_type=False)
-        return Response(response_xml, mimetype='application/xml')
+        return dict_to_xml_response({"status": "error", "message": str(e)})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run(debug=True)
